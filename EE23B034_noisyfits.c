@@ -1,0 +1,78 @@
+/*
+Name:  Keerthi Vasukhi Kamaraju, Priyanka Umasankar
+Roll Number: EE23B034, EE23B060
+Version 1.0
+
+
+Description:1. Start with a baseline noisy series of length N with zero mean and standard deviation sigma_n (you can reuse the code from a previous assignment on the Box-Muller transform that converts uniform random distribution to a normal distribution)
+            2. Add to it a Lorentzian curve of the form f(x) = 1/(1+25 x^2), with x ranging from -2 to 2.
+            3. Fit the data to a Gaussian of the from g(x) = A * exp(-x^2/(2*sigma_g^2))
+            4. Plot the goodness of fit R^2 versus sigma_n. Label both axis of the plot.
+
+    inputs: N sigma_n 
+    outputs:  sigma_n A sigma_g R^2. 
+    submit: rollnum_noisyfits.c  and Rsquare.jpg
+
+
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+//generate random values using Box-Muller transformation
+double ran(double sigma_n) {
+
+    double u1 = rand()/(RAND_MAX + 1.0);
+    double u2 = rand()/(RAND_MAX + 1.0);
+    double z0 = sqrt((-2)*log(u1))*cos(2*3.1415*u2);
+
+    return (z0 * sigma_n);
+}
+
+//Lorentz function
+double lorentz(double x) {
+  double y;
+  y = 1/(1+25*pow(x,2)) ;
+  return y; 
+}
+
+int main(int argc, char ** argv) {
+    int N = atoi(argv[1]); //number of data points
+    float sigma_n = atof(argv[2]); 
+    FILE* pc = fopen("pic.txt", "w");
+        double * x = (double*)(malloc(N*sizeof(double)));
+        double * signal = (double*)(malloc(N*sizeof(double)));
+        FILE * fp = fopen("lor.dat","w");
+        for (int i = 0; i < N; i++) {
+            x[i] = -2 + (((double)4)/(N-1))*i; //equidistant points from -2 to +2
+            signal[i] = lorentz(x[i]) + 0.05*ran(sigma_n); //Add noise the lorentz input
+            fprintf(fp," %lf %lf\n", x[i], signal[i]);
+            fflush(fp); //flush any buffered output
+        }    
+    //open gnuplot as a child process and send commands to it
+    FILE *gnuplotPipe = popen("gnuplot -persist &> /dev/null", "w");
+    fprintf(gnuplotPipe ,"gauss(x) = a*exp((-(x**2))/(2*(sigma_g)**2))\n");
+    fprintf(gnuplotPipe ,"mean(x) = m\n");
+    fprintf(gnuplotPipe ,"fit mean(x) 'lor.dat' using 1:2 via m\n");
+    fprintf(gnuplotPipe ,"SST = FIT_WSSR/(FIT_NDF+1)\n" );
+    fprintf(gnuplotPipe ,"fit gauss(x) 'lor.dat' using 1:2 via a, sigma_g\n" );
+    fprintf(gnuplotPipe ,"SSE=FIT_WSSR/(FIT_NDF+2)\n");
+    fprintf(gnuplotPipe ,"SSR=SST-SSE\n");
+    fprintf(gnuplotPipe ,"R20=SSR/SST\n");
+    fprintf(gnuplotPipe ,"set print 'param.txt'\n");
+    fprintf(gnuplotPipe ,"print R20, a, sigma_g\n");
+    fprintf(gnuplotPipe ,"unset print");
+
+
+    pclose(gnuplotPipe);
+    double A, sigma_g, Rsq;
+    FILE* ptr = fopen("./param.txt", "r");
+    fscanf(ptr, "%lf %lf %lf\n", &Rsq, &A, &sigma_g);
+    fclose(ptr);
+    printf("%lf %lf %lf %lf\n", sigma_n, A, sigma_g, Rsq);
+    fflush(pc);
+    fclose(pc);
+    //gnuplot
+    //plot 'pic.txt' with lines
+}
